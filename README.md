@@ -14,7 +14,7 @@ It's a Flask RESTful API with CRUD capabilities that can also do some basic text
 ```
 $ python
 >> from app import db
->> db.create_all
+>> db.create_all()
 ```
 ```
 $ python ./app.py
