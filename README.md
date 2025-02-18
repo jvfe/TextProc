@@ -2,9 +2,14 @@
 
 Toy REST API for basic text processing
 
-This was made as a weekend project to learn Flask and basic NLP.
+This was made as a weekend project to learn FastAPI/Flask and basic NLP.
 
-It's a Flask RESTful API with CRUD capabilities that can also do some basic text processing.
+It's a FastAPI API with CRUD capabilities that can also do some basic text processing.
+
+- Using SQLAlchemy/Pydantic for DB
+- And simple text processing functions that use NLTK/Gensim.
+
+There's also a flask version (`flask.py`):
 
 - Using SQLAlchemy and Flask-Marshmallow for DB
 - Flask-RESTful for the actual REST resources
