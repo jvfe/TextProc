@@ -1,6 +1,3 @@
-# Created by https://www.toptal.com/developers/gitignore/api/python,linux
-# Edit at https://www.toptal.com/developers/gitignore?templates=python,linux
-
 ### Linux ###
 *~
 
@@ -188,5 +185,4 @@ poetry.toml
 # LSP config files
 pyrightconfig.json
 
-# End of https://www.toptal.com/developers/gitignore/api/python,linux
-n
+*.db

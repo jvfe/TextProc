@@ -1,119 +1,102 @@
-from flask import Flask, request, jsonify
-from flask_sqlalchemy import SQLAlchemy
-from flask_restful import Resource, Api
-from flask_marshmallow import Marshmallow
-from text_functions import finalbow, wordvec
+from fastapi import FastAPI, Depends, HTTPException
+from fastapi.responses import JSONResponse
+from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, Session
+from pydantic import BaseModel
+from .text_functions import finalbow, wordvec 
 
-# Init app
-app = Flask(__name__)
-api = Api(app)
+app = FastAPI()
 
-# SQLalchemy setup
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///TextProc.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# Database setup
+SQLALCHEMY_DATABASE_URL = "sqlite:///TextProc.db"
+engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+Base = declarative_base()
 
-# Initialize db
-db = SQLAlchemy(app)
+# Database model
+class User(Base):
+    __tablename__ = "users"
 
-# Init ma
-ma = Marshmallow(app)
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, index=True)
+    content = Column(String, nullable=False)
 
-class User(db.Model):
-  id = db.Column(db.Integer, primary_key=True)
-  name = db.Column(db.String(100), unique=True)
-  content = db.Column(db.String(), nullable=False)
+# Create the tables
+Base.metadata.create_all(bind=engine)
 
-  def __init__(self, name, content):
-    self.name = name
-    self.content = content
+# Pydantic models for request validation
+class UserCreate(BaseModel):
+    name: str
+    content: str
 
-  def __repr__(self):
-    return str(self.name)
-    return str(self.content)
+class WordRequest(BaseModel):
+    word: str
 
-# User Schema
-
-class UserSchema(ma.Schema):
-  class Meta:
-    fields = ('id', 'name', 'content')
-
-# Init schema
-
-user_schema = UserSchema()
-users_schema = UserSchema(many=True) 
-
-# The following resource creates users and gets the whole db
-
-class createandseeDatabase(Resource):
-  
-    def post(self):
-      name = request.json['name']
-      content = request.json['content']
-
-      new_user = User(name, content)
-
-      db.session.add(new_user)
-      db.session.commit()
-
-      return user_schema.jsonify(new_user)
-    
-    def get(self):
-      all_users = User.query.all()
-      result = users_schema.dump(all_users)
-      return jsonify(result)
-
-'''
-The following resource gets single users from the db,
-can update user info on the db and also delete users.
-'''
-class singleUserOperations(Resource):
-
-  def get(self, id):
-    user = User.query.get(id)
-    return user_schema.jsonify(user)
-    
-  def put(self, id):
-    user = User.query.get(id)
-
-    newname = request.json['name']
-    newcontent = request.json['content']
-
-    user.name = newname
-    user.content = newcontent
-
-    db.session.commit()
-    return user_schema.jsonify(user)
-
-  def delete(self, id):
-    user = User.query.get(id)
-    db.session.delete(user)
-    db.session.commit()
-
-# Now the following functions execute the text operations
-class BoWGet(Resource):
-
-  def get(self, id):
-    user = User.query.get(id)
-    text = user.content
-    return jsonify(finalbow(text))
-
-class WordVec(Resource):
-
-  def post(self, id):
-    user = User.query.get(id)
-    text = user.content
-    word = request.json['word']
+# Dependency to get DB session
+def get_db():
+    db = SessionLocal()
     try:
-      return jsonify(wordvec(text, word))
+        yield db
+    finally:
+        db.close()
+
+@app.post("/users", response_model=UserCreate)
+def create_user(user: UserCreate, db: Session = Depends(get_db)):
+    db_user = User(name=user.name, content=user.content)
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+@app.get("/users")
+def get_users(db: Session = Depends(get_db)):
+    users = db.query(User).all()
+    return users
+
+@app.get("/users/{id}")
+def get_user(id: int, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+@app.put("/users/{id}")
+def update_user(id: int, user_data: UserCreate, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user.name = user_data.name
+    user.content = user_data.content
+    db.commit()
+    return user
+
+@app.delete("/users/{id}")
+def delete_user(id: int, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    db.delete(user)
+    db.commit()
+    return {"message": "User deleted"}
+
+@app.get("/users/{id}/getbow")
+def get_bow(id: int, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return JSONResponse(content=finalbow(user.content))
+
+@app.post("/users/{id}/wordvec")
+def get_word_vector(id: int, request: WordRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    try:
+        return JSONResponse(content=wordvec(user.content, request.word))
     except:
-      return {'error':"The word you requested isn't in the vocabulary!"}
-
-# Adding all resources to the api
-api.add_resource(WordVec, '/users/<id>/wordvec')
-api.add_resource(BoWGet, '/users/<id>/getbow')
-api.add_resource(singleUserOperations, '/users/<id>')
-api.add_resource(createandseeDatabase, '/users')
-
-
-if __name__=='__main__':
-  app.run()
+        return JSONResponse(content={"error": "The word you requested isn't in the vocabulary!"})
