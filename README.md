@@ -15,6 +15,14 @@ It's a Flask RESTful API with CRUD capabilities that can also do some basic text
 conda env create -f environment.yml
 ```
 
+```python
+import nltk
+
+nltk.download('punkt_tab')
+nltk.download('stopwords')
+nltk.download('wordnet')
+```
+
 ### Init db and run api:
 
 ```python
@@ -34,19 +42,22 @@ $ python ./app.py
 * Create new user:
 
 ```
-curl -X POST http://127.0.0.1:5000/users \                                                    -H "Content-Type: application/json" \
+curl -X POST http://127.0.0.1:5000/users \
+     -H "Content-Type: application/json" \
      -d '{"name":"João","content":"I must explain to you how all this mistaken idea of denouncing pleasure and praising pain was born and I will give you a complete account of the system, and expound the actual teachings of the great explorer of the truth, the master-builder of human happiness."}'
 ```
 
 * Get user 1's bag-of-words:
 
 ```
-curl --header "Content-Type: application/json"   --request GET  http://localhost:5000/users/1/getbow
+curl --header "Content-Type: application/json" --request GET  http://localhost:5000/users/1/getbow
 ```
 
 * Get the word most similar to 'pleasure' in user 1's vocabulary:
 
 ```
-$ curl --header "Content-Type: application/json"   --request GET  http://localhost:5000/users/1/wordvec
+curl -X POST http://127.0.0.1:5000/users/2/wordvec \
+     -H "Content-Type: application/json" \
+     -d '{"word": "pleasure"}'
 ```
 
